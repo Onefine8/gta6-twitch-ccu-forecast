@@ -22,10 +22,10 @@ comparables; the pattern is what the leaderboard's best entries use too
   ~0.75x-0.9x through the US unlock hours, then rises to ~1.3x-1.7x
   in the evening (hours 19-23) before easing at hour 24.
 - So the forecast anchors on hour 1 and scales the pooled shape:
-  median log-ratio per hour = 0.6 * (linear fit of log-ratio on
+  median log-ratio per hour = 0.7 * (linear fit of log-ratio on
   log hour-1 size, evaluated at GTA VI's hour-1 size, with the
   extrapolation capped at 0.7 log units past the biggest comparable)
-  + 0.4 * (Gaussian-kernel weighted median of log-ratios, bandwidth
+  + 0.3 * (Gaussian-kernel weighted median of log-ratios, bandwidth
   1.5 in log hour-1 size). The blend keeps the scale effect without
   letting the linear fit run away past the data.
 - Spread per hour = the residual standard deviation of that hour's
@@ -33,8 +33,10 @@ comparables; the pattern is what the leaderboard's best entries use too
   much launch days differ even at the same size; quantiles are
   median * exp(z_tau * sigma_h).
 - Leave-one-out pinball loss on the 28 big comparables (hour-1
-  >= 10k): this model ~0.265, kernel-only ~0.281, the house
-  persistence baseline ~0.351. The pooled shape is doing the work.
+  >= 10k): this model ~0.264 (regression weight 0.7; measured 0.2655
+  at 0.6 and 0.2672 at 0.5, regression-only 0.2637), kernel-only
+  ~0.281, the house persistence baseline ~0.351. The pooled shape
+  is doing the work.
 
 Rules the program obeys: standard library only, no network, no
 randomness (same bytes every run), reads every *.in in the input
@@ -65,7 +67,12 @@ MIN_H1 = 10000
 # Kernel bandwidth in log hour-1 viewers.
 KERNEL_BW = 1.5
 # Blend weight of the scale regression vs the kernel median.
-W_REG = 0.6
+# Raised 0.6 -> 0.7 on the leave-one-out evidence: pinball 0.2655 at
+# 0.6, 0.2644 at 0.7, 0.2672 at 0.5 (regression-only 0.2637). The
+# remaining 0.3 kernel weight still anchors the median to observed
+# shapes at the largest sizes, which matters because GTA VI's hour 1
+# will sit past every comparable in the pool.
+W_REG = 0.7
 # Cap on extrapolating past the biggest comparable, in log units.
 CAP_EXTRA = 0.7
 # Floor on the per-hour log spread.
