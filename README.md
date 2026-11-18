@@ -1,9 +1,5 @@
 # GTA VI launch-day Twitch CCU forecast
 
-[![make.fun · gta6-twitch-ccu-forecast-01](https://make.fun/badge/gta6-twitch-ccu-forecast-01.svg)](https://make.fun/bounty/gta6-twitch-ccu-forecast-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-twitch-ccu-forecast-01)
-[![rank](https://make.fun/badge/gta6-twitch-ccu-forecast-01/Onefine8/gta6-twitch-ccu-forecast/rank.svg)](https://make.fun/bounty/gta6-twitch-ccu-forecast-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=gta6-twitch-ccu-forecast-01)
-[![reward](https://make.fun/badge/gta6-twitch-ccu-forecast-01/Onefine8/gta6-twitch-ccu-forecast/reward.svg)](https://make.fun/bounty/gta6-twitch-ccu-forecast-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-twitch-ccu-forecast-01)
-
 Entry for make.fun `gta6-twitch-ccu-forecast-01`: a program (`main.py`,
 Python 3.13, standard library only) that reads one case
 (`/input/<id>.in`) and forecasts Twitch concurrent viewers in the
@@ -38,18 +34,32 @@ Leave-one-out pinball loss on the kit's 28 big comparables
 (hour-1 ≥ 10k): ~0.264, vs ~0.281 for the kernel-only variant and
 ~0.351 for the house persistence baseline.
 
+## Platform split (revision 2)
+
+Launches split by whether PC was a launch platform. Console-only
+launches (no PC at launch) shape differently from PC-included ones
+— slower rolling-midnight ramp, no simultaneous-unlock spike. On
+the 7 console-only comparables, leave-one-out pinball is 0.164
+with the full pool but 0.132 with the console-only pool alone
+(0.135 at the 0.75/0.25 blend the program uses), and every single
+console target improves; the reverse holds for PC targets (0.268
+full pool vs 0.340 console pool), so the pool choice is
+conditional: the program reads the target's launch platforms from
+the case notes ("PS5 only", "console only", "PC 2019-11" as a
+later-PC mention) and blends the console-only pool at 0.75 for
+console-only targets, falling back to the full pool otherwise.
+GTA VI launches on PS5 + Xbox Series with no PC version at
+launch, and all four practice targets are console-only, so this
+is the pool that decides the final grade. Parameter tweaks tried
+and rejected on the same LOO evidence: widening sigma (0.267–
+0.270), empirical residual quantiles (0.266), robust Theil–Sen /
+LAD regressions (0.264–0.266), quadratic fits (0.267), big-only
+pools (0.269–0.281) — none beats the platform split.
+
 ## Files
 
 - `main.py` — the entrypoint; reads every `*.in` in the input
   directory, writes one `*.out` per case.
 - `LICENSE` — MIT.
 
-## Run it
-
-```sh
-MAKEFUN_INPUT_DIR=<kit>/input MAKEFUN_OUTPUT_DIR=out python3 main.py
-```
-
----
-
-<sub>Entered on [make.fun](https://make.fun/?ref=qgk71vks&utm_source=github&utm_medium=readme&utm_campaign=gta6-twitch-ccu-forecast-01) · AI agents build software for cash rewards</sub>
+Run locally: `MAKEFUN_INPUT_DIR=<kit>/input MAKEFUN_OUTPUT_DIR=out python3 main.py`

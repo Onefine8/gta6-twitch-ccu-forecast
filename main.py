@@ -37,6 +37,22 @@ comparables; the pattern is what the leaderboard's best entries use too
   at 0.6 and 0.2672 at 0.5, regression-only 0.2637), kernel-only
   ~0.281, the house persistence baseline ~0.351. The pooled shape
   is doing the work.
+- PLATFORM SPLIT (the one structural fix that matters): launches
+  split by whether PC was a launch platform. Console-only launches
+  (no PC at launch: PS5/PS4/Xbox/Switch only) shape differently
+  from PC-included ones -- slower rolling-midnight ramp, no
+  simultaneous-unlock spike. On the 7 console-only comparables,
+  leave-one-out pinball is 0.164 with the full pool but 0.132 with
+  the console-only pool alone (0.135 at a 0.75/0.25 blend), and
+  every single console target improves; the reverse holds for
+  PC targets (0.268 full pool vs 0.340 console pool), so the pool
+  choice is conditional on the target's own launch platforms,
+  read from the case notes. GTA VI launches on PS5 + Xbox Series
+  with no PC version at launch, and all four practice targets are
+  console-only too, so this is the pool that decides the final
+  grade. The blend (0.75 console / 0.25 full pool) keeps most of
+  the gain while the 28-curve pool stabilises the regression where
+  GTA VI's hour 1 runs past every console comparable.
 
 Rules the program obeys: standard library only, no network, no
 randomness (same bytes every run), reads every *.in in the input
@@ -48,6 +64,7 @@ non-decreasing, each in (0, 1e9], rounded half-up to 2 decimals.
 import json
 import math
 import os
+import re
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -128,6 +145,32 @@ def launch_curve(comp):
     return by_hour
 
 
+def _console_only_platforms(platforms):
+    """True when a comparable launched with no PC version."""
+    return "PC" not in (platforms or "")
+
+
+def console_only_target(case):
+    """True when the target game launched on consoles only (no PC).
+
+    Read from the case's own notes: console platforms are named and
+    any PC mention is a later/unannounced one ("PC 2019-11", "PC
+    later", "PC version not announced"). A bare PC mention ("on PC,
+    PS5, Xbox") means PC was a launch platform and returns False.
+    Unknown text returns False (safe default: the full pool).
+    """
+    game = case.get("game") or {}
+    text = (game.get("name", "") + " " + (case.get("notes") or "")).lower()
+    if not text.strip():
+        return False
+    t = re.sub(r"pc\s*(later|to follow|version[^.]{0,40}|not announced|"
+               r"unannounced|\d{4}-\d{2}|\d{4})", " ", text)
+    if re.search(r"\bpc\b", t):
+        return False
+    return re.search(r"\bps5\b|\bps4\b|\bxbox\b|\bswitch\b|playstation|"
+                      r"console only|console-only", text) is not None
+
+
 def _mean(xs):
     return sum(xs) / len(xs)
 
@@ -193,6 +236,24 @@ def hour_quantiles(pool, p1, hour):
     return out
 
 
+# Blend weight of the console-only pool for console-only targets
+# (LOO: 0.75 blend 0.135, pure console 0.132, full pool 0.164).
+W_CONSOLE = 0.75
+# Minimum console-pool size before the split is trusted.
+MIN_CONSOLE_POOL = 5
+
+
+def _blend_rows(row_full, row_con, w_con):
+    """Blend two 5-quantile rows in log space, keeping them ordered."""
+    out = []
+    for a, b in zip(row_full, row_con):
+        v = math.exp(w_con * math.log(max(1, b)) + (1 - w_con) * math.log(max(1, a)))
+        out.append(round2(v))
+    for i in range(1, 5):
+        out[i] = max(out[i], out[i - 1])
+    return out
+
+
 def forecast_case(case, name):
     if case.get("levels") != LEVELS:
         raise ValueError(f"{name} asks for levels {case.get('levels')}, not {LEVELS}")
@@ -202,14 +263,23 @@ def forecast_case(case, name):
         raise ValueError(f"{name} has no hour-1 print")
     p1 = max(1, first["viewers"])
     pool = []
+    console_pool = []
     for comp in case.get("comparables") or []:
         curve = launch_curve(comp)
-        if curve is not None:
-            pool.append(curve)
+        if curve is None:
+            continue
+        pool.append(curve)
+        if _console_only_platforms(comp.get("platforms")):
+            console_pool.append(curve)
+    use_console = (console_only_target(case)
+                   and len(console_pool) >= MIN_CONSOLE_POOL)
     hours = []
     for row in case.get("forecast") or []:
         h = row["hour"]
-        hours.append({"hour": h, "q": hour_quantiles(pool, p1, h)})
+        q = hour_quantiles(pool, p1, h)
+        if use_console:
+            q = _blend_rows(q, hour_quantiles(console_pool, p1, h), W_CONSOLE)
+        hours.append({"hour": h, "q": q})
     return {"hours": hours}
 
 
